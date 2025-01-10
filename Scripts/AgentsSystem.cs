@@ -3,48 +3,69 @@ using UnityEngine;
 
 public class AgentsSystem : MonoBehaviour
 {
-    [SerializeField] private int agentCount = 0;
-    private List<GameObject> agents = new List<GameObject>();
+    [SerializeField] private int particlesCount = 0;
     [SerializeField] private List<ParticleType> particleTypes;
-    [SerializeField] private GameObject go_Agent;
-    [SerializeField] private Transform parent;
     [SerializeField] private float attractionScale = 2;
     [SerializeField] private float r_max = 1;
     [SerializeField][Range(0, 1)] private float friction = 0.05f;
     [SerializeField] private GeneralSettings settings;
+    [SerializeField] private ParticleSystem _particleSystem;
+    private ParticleSystem.Particle[] _particles;
     private float[] positionsX;
     private float[] positionsY;
     private float[] velocitiesX;
     private float[] velocitiesY;
     private int[] colors;
     private float[,] interactionMaxtix;
+
+    private float force(float x, float t)
+    {
+        const float beta = 0.3f;
+        if (x < beta)
+            return x / beta - 1;
+        if (beta < x && x < 1)
+        {
+            float _ = 2 * x - 1 - beta;
+            return t * (1 - (_ < 0 ? -_ : _) / (1 - beta));
+        }
+        return 0;
+    }
     void Start()
     {
-        colors = new int[agentCount];
-        positionsX = new float[agentCount];
-        positionsY = new float[agentCount];
-        velocitiesX = new float[agentCount];
-        velocitiesY = new float[agentCount];
-        for (int i = 0; i < agentCount; i++)
+        _particles = new ParticleSystem.Particle[particlesCount];
+        colors = new int[particlesCount];
+        positionsX = new float[particlesCount];
+        positionsY = new float[particlesCount];
+        velocitiesX = new float[particlesCount];
+        velocitiesY = new float[particlesCount];
+        for (int i = 0; i < particlesCount; i++)
         {
-            agents.Add(Instantiate(go_Agent, parent));
             positionsX[i] = Random.value * 10 - 5;
             positionsY[i] = Random.value * 10 - 5;
             velocitiesX[i] = 0;
             velocitiesY[i] = 0;
-            colors[i] = Random.Range(0, 2);
-            agents[i].GetComponent<Agent>().Type = particleTypes[colors[i]];
+            colors[i] = Random.Range(0, 4);
         }
-        interactionMaxtix = new float[2, 2];
-        interactionMaxtix[0, 0] = 1;
-        interactionMaxtix[0, 1] = -1;
-        interactionMaxtix[1, 0] = 1;
-        interactionMaxtix[1, 1] = 1;
+        interactionMaxtix = new float[4, 4] // left - origin, top - target
+        {
+            {1,0.2f,0,0 },
+            {0,1,0.2f,0 },
+            {0,0,1,0.2f },
+            {0,0,0,1 },
+        };
+        _particleSystem.Emit(particlesCount);
+        for (int i = 0; i < particlesCount; i++)
+        {
+            _particles[i].startSize = 0.3f;
+            _particles[i].startColor = particleTypes[colors[i]].Color;
+
+        }
+
     }
 
     void FixedUpdate()
     {
-        for (int i = 0; i < agents.Count; i++)
+        for (int i = 0; i < particlesCount; i++)
         {
             float phantomPositionX;
             float phantomPositionY;
@@ -54,21 +75,23 @@ public class AgentsSystem : MonoBehaviour
             float ry = 0;
             float r = 0;
             float f = 0;
-            for (int j = 0; j < agents.Count; j++)
+            for (int j = 0; j < particlesCount; j++)
             {
                 phantomPositionX = positionsX[i];
                 phantomPositionY = positionsY[i];
+                float _x = positionsX[i] - positionsX[j];
+                float _y = positionsY[i] - positionsY[j];
                 if (i == j) continue;
-                if (Mathf.Abs(positionsX[i] - positionsX[j]) > settings.width / 2)
+                if ((_x < 0 ? -_x : _x) > settings.width / 2)
                     phantomPositionX = positionsX[i] - settings.width * Mathf.Sign(positionsX[i] - positionsX[j]);
-                if (Mathf.Abs(positionsY[i] - positionsY[j]) > settings.height / 2)
+                if ((_y < 0 ? -_y : _y) > settings.height / 2)
                     phantomPositionY = positionsY[i] - settings.height * Mathf.Sign(positionsY[i] - positionsY[j]);
                 rx = positionsX[j] - phantomPositionX;
                 ry = positionsY[j] - phantomPositionY;
                 r = Mathf.Sqrt(rx * rx + ry * ry);
                 if (r > 0 && r < r_max)
                 {
-                    f = Helper.Particle(r / r_max, interactionMaxtix[colors[i], colors[j]]);
+                    f = force(r / r_max, interactionMaxtix[colors[i], colors[j]]);
                     totalForceX += rx / r * f;
                     totalForceY += ry / r * f;
                 }
@@ -91,8 +114,17 @@ public class AgentsSystem : MonoBehaviour
             if (positionsY[i] < 0 || positionsY[i] > settings.height)
                 positionsY[i] = (positionsY[i] + settings.height) % settings.height;
 
-            agents[i].transform.position = new Vector3(positionsX[i], positionsY[i], 0);
+            _particles[i].position = new Vector3(positionsX[i], positionsY[i], 0);
+
+
+
+
         }
+        _particleSystem.SetParticles(_particles, particlesCount);
+
+
+
+
 
     }
 }
