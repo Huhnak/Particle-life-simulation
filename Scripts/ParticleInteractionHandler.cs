@@ -7,7 +7,8 @@ namespace Assets.Scripts
 {
     class ParticleInteractionHandler : MonoBehaviour
     {
-        [SerializeField] private GameObject _onePropertyTemplate;
+        [SerializeField] private GameObject _onePropertyPrefab;
+        [SerializeField] private GameObject _onePropertyParticlePrefab;
         [SerializeField] private GeneralSettings _settings;
         public int Size { get; private set; }
         public float[,] Matrix { get; private set; } // left - origin, top - target
@@ -33,22 +34,37 @@ namespace Assets.Scripts
                 {
                     int _i = i;
                     int _j = j;
-                    _properties[i, j] = Instantiate(_onePropertyTemplate, this.transform);
+                    _properties[i, j] = Instantiate(_onePropertyPrefab, this.transform);
                     _properties[i, j].GetComponent<OneProperty>().Value = new OneProperty.value(i, j);
                     var _x = _properties[i, j].GetComponent<RectTransform>().sizeDelta.x;
                     var _y = _properties[i, j].GetComponent<RectTransform>().sizeDelta.y;
-                    _properties[i, j].transform.localPosition = new Vector3(j * _x + _x / 2, -i * _y - _y / 2);
+                    _properties[i, j].transform.localPosition = new Vector3(j * _x + _x * 1.5f, -i * _y - _y * 1.5f);
                     var _ = _properties[i, j].GetComponent<TMP_InputField>();
                     _.onValueChanged.AddListener((string s) => OnValueChanged(s, _i, _j));
-                    // Сохнаряет скоуп и помнит значения i=4 и j=4. 
+                    // Сохн аряет скоуп и помнит значения i=4 и j=4. 
+                    if (i == 0)
+                    {
+                        var particleColorImage = Instantiate(_onePropertyParticlePrefab, transform);
+                        particleColorImage.transform.localPosition = new Vector3(j * _x + _x * 1.5f, -_y / 2);
+                        particleColorImage.GetComponent<UnityEngine.UI.Image>().color = _settings.particleTypes[j].Color;
+                    }
+                    if (j == 0)
+                    {
+                        var particleColorImage = Instantiate(_onePropertyParticlePrefab, transform);
+                        particleColorImage.transform.localPosition = new Vector3(j * _x + _x * 1.5f, -_y / 2);
+                        particleColorImage.transform.localPosition = new Vector3(_x / 2, -i * _y - _y * 1.5f);
+                        particleColorImage.GetComponent<UnityEngine.UI.Image>().color = _settings.particleTypes[i].Color;
+                    }
                 }
             }
         }
         public void OnValueChanged(string s, int i, int j)
         {
-            var val = float.Parse(s);
-            Matrix[i, j] = val;
+            float val;
+            if (float.TryParse(s, out val))
+                Matrix[i, j] = val;
             UpdateUI(i, j);
+
 
         }
         private void UpdateUI()
@@ -72,7 +88,7 @@ namespace Assets.Scripts
         private void UpdateUI(int i, int j)
         {
             var _ = _properties[i, j].GetComponent<TMP_InputField>();
-            _.text = Matrix[i, j].ToString();
+            //_.text = Matrix[i, j].ToString();
             ColorBlock temp = _.colors;
             Color c = Color.HSVToRGB(interpolate(Matrix[i, j]), 1, 1);
             temp.normalColor = c;
@@ -116,6 +132,13 @@ namespace Assets.Scripts
             {
                 Matrix[i, i + 1] = next;
             }
+        }
+        public void GenerateBlankParameters()
+        {
+            for (int i = 0; i < Size; i++)
+                for (int j = 0; j < Size; j++)
+                    Matrix[i, j] = 0;
+            UpdateUI();
         }
         private float interpolate(float val, float in_min = -1, float in_max = 1, float out_min = 0, float out_max = 0.3f)
         {

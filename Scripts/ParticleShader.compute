@@ -18,6 +18,8 @@ int particleCount;
 float attractionScale;
 float friction;
 float r_max;
+float r_min;
+float t_min;
 float deltaTime;
 int particleTypesCount;
 StructuredBuffer<float> particleInteractions;
@@ -26,7 +28,37 @@ StructuredBuffer<float> particleInteractions;
 {
     return (frac(sin(dot(co.xy, float2(12.9898, 78.233))) * 43758.5453)) * 1;
 }*/
+/*
 float force(float x, float t)
+{
+    if (0<=x && x <= r_min)
+    {
+        return -(x * t_min) / r_min + t_min;
+    }
+    if (r_min < x && x <= r_min + (r_max - r_min) / 2)
+    {
+        return (2 * t * (x - r_min)) / (r_max - r_min);
+    }
+    return (2 * t * (x - r_max)) / (r_min - r_max);
+
+
+}*/
+
+float force(float x, float t)
+{
+    if (0<=x && x <= r_min)
+    {
+        return -(x * t_min) / r_min + t_min;
+    }
+    if (r_min < x && x <= r_min + (r_max - r_min) / 2)
+    {
+        return (2 * t * (x - r_min)) / (r_max - r_min);
+    }
+    return (2 * t * (x - r_max)) / (r_min - r_max);
+
+
+}
+/*float force(float x, float t)
 {
     float beta = 0.3f;
     if (x < beta)
@@ -38,21 +70,22 @@ float force(float x, float t)
     }
     else
         return 0;
-}
+}*/
 
-[numthreads(1,1,1)]
+[numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+    int idx = id.x;
     float3 phantomPosition = float3(0,0,0);
     float3 pos = float3(0,0,0);
     float3 totalForce = float3(0,0,0);
     
-    Particle originParticle = particles[id.x];
+    Particle originParticle = particles[idx];
     Particle targetParticle;
     
     for (uint i = 0; i < particleCount; i++)
     {
-        if (i == id.x) continue;
+        if (i == idx) continue;
         phantomPosition = originParticle.position;
         targetParticle = particles[i];
         pos = targetParticle.position - phantomPosition;
@@ -67,22 +100,22 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             phantomPosition.y += resolution;
         pos = targetParticle.position - phantomPosition;
         float r = sqrt(pos.x * pos.x + pos.y * pos.y);
-        if ((r > 0) && (r < r_max))
+        if (r < r_max)
         {
             float t = particleInteractions[originParticle.color * particleTypesCount + targetParticle.color];
-            float f = force(r / r_max, t);
+            float f = force(r , t);
             totalForce += pos / r * f;
         }
     }
     totalForce *= r_max * attractionScale;
-    particles[id.x].velocity = particles[id.x].velocity * friction;
-    particles[id.x].velocity = particles[id.x].velocity + totalForce * deltaTime;
-    particles[id.x].position = particles[id.x].position + particles[id.x].velocity * deltaTime;
+    particles[idx].velocity = particles[idx].velocity * friction;
+    particles[idx].velocity = particles[idx].velocity + totalForce * deltaTime;
+    particles[idx].position = particles[idx].position + particles[idx].velocity * deltaTime;
 
-    if (particles[id.x].position.x < 0 || particles[id.x].position.x > resolution)
-        particles[id.x].position.x = (particles[id.x].position.x + resolution) % resolution;
-    if (particles[id.x].position.y < 0 || particles[id.x].position.y > resolution)
-        particles[id.x].position.y = (particles[id.x].position.y + resolution) % resolution;
+    if (particles[idx].position.x < 0 || particles[idx].position.x > resolution)
+        particles[idx].position.x = (particles[idx].position.x + resolution) % resolution;
+    if (particles[idx].position.y < 0 || particles[idx].position.y > resolution)
+        particles[idx].position.y = (particles[idx].position.y + resolution) % resolution;
     
     
 

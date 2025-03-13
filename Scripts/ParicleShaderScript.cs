@@ -2,7 +2,7 @@ using Assets.Scripts;
 using UnityEngine;
 
 
-struct Particle
+struct ParticleData
 {
     public Vector3 position;
     public Vector3 velocity;
@@ -16,40 +16,54 @@ public class ParicleShaderScript : MonoBehaviour
     [SerializeField] private float _attractionScale;
     [SerializeField] private float _friction;
     [SerializeField] private float _r_max;
+    [SerializeField] private float _r_min;
+    [SerializeField] private float _t_min;
     [SerializeField] private float resolution;
     [SerializeField] private ParticleInteractionHandler _particleInteractionHandler;
     [SerializeField] private GeneralSettings _generalSettings;
+    [SerializeField] private ParticleSystem _particleSystem;
+    private ParticleSystem.Particle[] _particles;
     [SerializeField] private float[,] InteractionMaxtix { get { return _particleInteractionHandler.Matrix; } }
     private float[] _interactionMaxtix1d;
 
-    private Particle[] data;
+    private ParticleData[] data;
     private GameObject[] particlesGameObjects;
 
     void Start()
     {
-        data = new Particle[_particleCount];
+        InitializeParticleData();
+        _particles = new ParticleSystem.Particle[_particleCount];
         for (int i = 0; i < _particleCount; i++)
         {
-            data[i] = new Particle();
+            _particles[i].startSize = 0.1f;
+            _particles[i].startColor = _generalSettings.particleTypes[data[i].color].Color;
+            _particles[i].startLifetime = 0;
+            _particles[i].position = new Vector3((float)(Random.value * 0.5), (float)(Random.value * 0.5), (float)(Random.value * 0.5));
+        }
+
+        _particleSystem.SetParticles(_particles, _particleCount);
+
+        _interactionMaxtix1d = new float[_generalSettings.particleTypes.Count * _generalSettings.particleTypes.Count];
+    }
+    private void InitializeParticleData()
+    {
+        data = new ParticleData[_particleCount];
+        for (int i = 0; i < _particleCount; i++)
+        {
+            data[i] = new ParticleData();
             data[i].position = new Vector3(Random.Range(0, resolution), Random.Range(0, resolution), 0);
             data[i].color = Random.Range(0, _generalSettings.particleTypes.Count);
             data[i].velocity = Vector3.zero;
         }
-        _interactionMaxtix1d = new float[_generalSettings.particleTypes.Count * _generalSettings.particleTypes.Count];
-        CreateParticles();
-    }
-    private void CreateParticles()
-    {
-        particlesGameObjects = new GameObject[_particleCount];
-        var parent = gameObject.transform;
-        for (int i = 0; i < _particleCount; i++)
-        {
-            particlesGameObjects[i] = Instantiate(particlePrefab, parent);
-            particlesGameObjects[i].GetComponent<SpriteRenderer>().color = _generalSettings.particleTypes[data[i].color].Color;
-        }
     }
 
     void Update()
+    {
+        _particleSystem.SetParticles(_particles, _particleCount);
+
+        UpdateParticles();
+    }
+    private void UpdateParticles()
     {
         System.Buffer.BlockCopy(InteractionMaxtix, 0, _interactionMaxtix1d, 0, sizeof(float) * _generalSettings.particleTypes.Count * _generalSettings.particleTypes.Count);
         int bufferSize = sizeof(float) * 3 + sizeof(float) * 3 + sizeof(int);
@@ -64,19 +78,21 @@ public class ParicleShaderScript : MonoBehaviour
         _computeShader.SetFloat("attractionScale", _attractionScale);
         _computeShader.SetFloat("friction", _friction);
         _computeShader.SetFloat("r_max", _r_max);
+        _computeShader.SetFloat("r_min", _r_min);
+        _computeShader.SetFloat("t_min", _t_min);
         _computeShader.SetFloat("deltaTime", Time.deltaTime);
         _computeShader.SetInt("particleTypesCount", _generalSettings.particleTypes.Count);
         //_interactionMaxtix1d = new float[_generalSettings.particleTypes.Count * _generalSettings.particleTypes.Count];
         _computeShader.SetBuffer(0, "particleInteractions", interactionMatrixBuffer);
 
-        _computeShader.Dispatch(0, data.Length, 1, 1);
+        int threadGroupsX = Mathf.CeilToInt((float)data.Length / 64);
+        _computeShader.Dispatch(0, threadGroupsX, 1, 1);
 
         particlesBuffer.GetData(data);
 
         for (int i = 0; i < _particleCount; i++)
         {
-            particlesGameObjects[i].transform.position = data[i].position;
-            //particlesGameObjects[i].GetComponent<MeshRenderer>().material.SetColor("_Color", data[i].color);
+            _particles[i].position = data[i].position;
         }
         particlesBuffer.Dispose();
         interactionMatrixBuffer.Dispose();
