@@ -1,7 +1,6 @@
 using Assets.Scripts;
 using UnityEngine;
 
-
 struct ParticleData
 {
     public Vector3 position;
@@ -11,12 +10,17 @@ struct ParticleData
 public class ParicleShaderScript : MonoBehaviour
 {
     [SerializeField] private ComputeShader _computeShader;
+    public float ParticleCount { get { return _particleCount; } set { _particleCount = Mathf.FloorToInt(value); } }
     [SerializeField] private int _particleCount;
-    [SerializeField] private GameObject particlePrefab;
+    public float AttractionScale { get { return _attractionScale; } set { _attractionScale = value; } }
     [SerializeField] private float _attractionScale;
+    public float Friction { get { return _friction; } set { _friction = value; } }
     [SerializeField] private float _friction;
+    public float RMax { get { return _r_max; } set { _r_max = value; } }
     [SerializeField] private float _r_max;
+    public float RMin { get { return _r_min; } set { _r_min = value; } }
     [SerializeField] private float _r_min;
+    public float TMin { get { return _t_min; } set { _t_min = value; } }
     [SerializeField] private float _t_min;
     [SerializeField] private float resolution;
     [SerializeField] private ParticleInteractionHandler _particleInteractionHandler;
@@ -57,7 +61,7 @@ public class ParicleShaderScript : MonoBehaviour
         }
     }
 
-    void Update()
+    public void Update()
     {
         _particleSystem.SetParticles(_particles, _particleCount);
 
@@ -97,4 +101,5 @@ public class ParicleShaderScript : MonoBehaviour
         particlesBuffer.Dispose();
         interactionMatrixBuffer.Dispose();
     }
+
 }
